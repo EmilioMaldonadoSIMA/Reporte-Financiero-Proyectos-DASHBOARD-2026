@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIMA Energía — Reporte Financiero</title>
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #111;
+      font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+      padding: 16px;
+      min-height: 100vh;
+    }
+    .dashboard { max-width: 1400px; margin: 0 auto; }
+
+    /* ── Cards ── */
+    .card {
+      background: #353535;
+      border-radius: 10px;
+      border: 0.5px solid #444;
+      padding: 12px 16px;
+    }
+
+    /* ── Banner ── */
+    .banner {
+      background: #1a2a1a;
+      border-radius: 7px;
+      padding: 3px 12px;
+      margin-bottom: 8px;
+      border-left: 3px solid #00b01d;
+      display: inline-block;
+    }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 8.8px; }
+    th {
+      background: #252525; color: #fbbc04;
+      padding: 4px 3px; text-align: center;
+      border: 0.5px solid #444; font-weight: 600;
+      line-height: 1.3; vertical-align: middle; white-space: nowrap;
+    }
+    td {
+      padding: 3.5px 3px; text-align: center;
+      border: 0.5px solid #333; color: #f4f5f0;
+      white-space: nowrap; font-size: 8.8px;
+    }
+    .tr-s29  { background: #2a2a2a; }
+    .tr-s30  { background: #303030; }
+    .tr-var  { background: #2a2a2a; border-top: 1px solid #555; }
+
+    /* ── Gauges grid ── */
+    .gauges-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .gauge-card {
+      background: #353535; border-radius: 10px;
+      border: 0.5px solid #444; padding: 10px;
+    }
+    .gauge-title { font-size: 11px; font-weight: 500; color: #f4f5f0; text-align: center; margin-bottom: 2px; }
+    .gauge-wrap  { position: relative; }
+    .gauge-pct   {
+      position: absolute; bottom: 2px; left: 0; right: 0;
+      text-align: center; font-size: 15px; font-weight: 700;
+      text-shadow: 0 0 8px rgba(0,0,0,0.95), 0 1px 3px rgba(0,0,0,1);
+    }
+    .gauge-sub { font-size: 10px; color: #47de00; text-align: center; margin-top: 1px; font-weight: 500; }
+    .gauge-legend { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+    .gauge-legend span { font-size: 8px; color: #aaa; display: flex; align-items: center; gap: 4px; }
+    .gauge-legend i { width: 8px; height: 8px; border-radius: 1px; flex-shrink: 0; display: inline-block; }
+
+    /* ── Loading / Error ── */
+    .state-box {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 200px; gap: 12px; color: #f4f5f0;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #333; border-top-color: #47de00;
+      border-radius: 50%; animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Refresh button ── */
+    .btn-refresh {
+      background: #252525; border: 1px solid #47de00;
+      color: #47de00; padding: 4px 12px;
+      border-radius: 6px; cursor: pointer;
+      font-size: 11px; font-weight: 500;
+      transition: background .2s;
+    }
+    .btn-refresh:hover { background: #1a2a1a; }
+
+    @media (max-width: 900px)  { .gauges-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 520px)  { .gauges-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<div class="dashboard">
+
+  <!-- ══ ESTADO: Cargando ══ -->
+  <div id="loading-state" class="state-box">
+    <div class="spinner"></div>
+    <span style="color:#aaa;font-size:13px;">Conectando con Google Sheets…</span>
+  </div>
+
+  <!-- ══ ESTADO: Error ══ -->
+  <div id="error-state" class="state-box" style="display:none;">
+    <span style="font-size:28px;">⚠️</span>
+    <span id="error-msg" style="color:#ea4335;font-size:13px;text-align:center;max-width:420px;"></span>
+    <button class="btn-refresh" onclick="init()">↻ Reintentar</button>
+  </div>
+
+  <!-- ══ DASHBOARD ══ -->
+  <div id="dashboard" style="display:none;">
+
+    <!-- Banner -->
+    <div class="banner">
+      <span style="font-size:10px;font-weight:600;color:#00b01d;letter-spacing:.07em;">
+        AL CIERRE DE ESTA SEMANA (2026)
+      </span>
+    </div>
+
+    <!-- Header -->
+    <div class="card" style="border-left:3px solid #2a78d6;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+      <div>
+        <div style="font-size:9px;color:#777;letter-spacing:.1em;text-transform:uppercase;margin-bottom:2px;">Reporte ejecutivo</div>
+        <div style="font-size:16px;font-weight:500;color:#f4f5f0;">REPORTE FINANCIERO DE PROYECTOS</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="font-size:17px;font-weight:700;color:#f4f5f0;letter-spacing:.04em;">●●● sima</div>
+        <div style="background:#252525;border:1px solid #47de00;border-radius:8px;padding:5px 14px;text-align:center;">
+          <div style="font-size:9px;color:#777;">Periodo actual</div>
+          <div id="semana-label" style="font-size:18px;font-weight:600;color:#47de00;">SEMANA —</div>
+        </div>
+        <button class="btn-refresh" onclick="init()">↻ Actualizar</button>
+        <span id="last-update" style="font-size:9px;color:#555;"></span>
+      </div>
+    </div>
+
+    <!-- Tabla comparativa -->
+    <div class="card" style="margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:500;color:#f4f5f0;margin-bottom:6px;">
+        Comparativo semanal de indicadores financieros
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="min-width:52px;">SEMANAS</th>
+            <th>PRECIO<br>DE VENTA</th>
+            <th>CD<br>PPTO</th>
+            <th>%CD<br>PPTO</th>
+            <th>CD<br>REAL</th>
+            <th>%CD<br>REAL</th>
+            <th>UTIL.<br>PPTO</th>
+            <th>%UTIL<br>PPTO</th>
+            <th>UTIL. REAL<br>PROYECTADA</th>
+            <th>%UTIL<br>PROYECT.</th>
+            <th>CD<br>DISPONIBLE</th>
+            <th>%CD<br>DISP.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="tr-s29" id="row-ant"></tr>
+          <tr class="tr-s30" id="row-curr"></tr>
+          <tr class="tr-var" id="row-var"></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Título sección gauges -->
+    <div style="font-size:12px;font-weight:500;color:#f4f5f0;margin-bottom:8px;padding-left:2px;">
+      Contribución Variable:
+      <span style="color:#2a78d6;">Indicadores de riesgo y rentabilidad 2026 Total</span>
+    </div>
+
+    <!-- Grid de 8 odómetros -->
+    <div class="gauges-grid">
+
+      <!-- G1 · Riesgo -->
+      <div class="gauge-card">
+        <div class="gauge-title">Riesgo de Proyecto</div>
+        <div class="gauge-wrap">
+          <canvas id="g1" width="200" height="118" style="width:100%;display:block;" aria-label="Riesgo de proyecto"></canvas>
+          <div class="gauge-pct" id="pct1">—</div>
+        </div>
+        <div class="gauge-legend">
+          <span><i style="background:#ea4335;"></i>50%+ Atención Inmediata</span>
+          <span><i style="background:#fbbc04;"></i>20–50% Riesgo Alto</span>
+          <span><i style="background:#00b01d;"></i>0–20% Riesgo Controlado</span>
+        </div>
+      </div>
+
+      <!-- G2 · Rent. Ppto -->
+      <div class="gauge-card">
+        <div class="gauge-title">Rentabilidad Presupuesto</div>
+        <div class="gauge-wrap">
+          <canvas id="g2" width="200" height="118" style="width:100%;display:block;" aria-label="Rentabilidad presupuesto"></canvas>
+          <div class="gauge-pct" id="pct2">—</div>
+        </div>
+        <div id="sub2" class="gauge-sub"></div>
+        <div class="gauge-legend">
+          <span><i style="background:#ea4335;"></i>0–30% Insuficiente</span>
+          <span><i style="background:#fbbc04;"></i>30–34% Mínima</span>
+          <span><i style="background:#00b01d;"></i>35%+ Saludable</span>
+        </div>
+      </div>
+
+      <!-- G3 · Rent. Rolling -->
+      <div class="gauge-card">
+        <div class="gauge-title">Rentabilidad Rolling</div>
+        <div class="gauge-wrap">
+          <canvas id="g3" width="200" height="118" style="width:100%;display:block;" aria-label="Rentabilidad rolling"></canvas>
+          <div class="gauge-pct" id="pct3">—</div>
+        </div>
+        <div id="sub3" class="gauge-sub"></div>
+        <div class="gauge-legend">
+          <span><i style="background:#ea4335;"></i>0–30% Insuficiente</span>
+          <span><i style="background:#fbbc04;"></i>30–34% Mínima</span>
+          <span><i style="background:#00b01d;"></i>35%+ Saludable</span>
+        </div>
+      </div>
+
+      <!-- G4 · CD Disponible -->
+      <div class="gauge-card">
+        <div class="gauge-title">Costo Directo Disponible</div>
+        <div class="gauge-wrap">
+          <canvas id="g4" width="200" height="118" style="width:100%;display:block;" aria-label="Costo directo disponible"></canvas>
+          <div class="gauge-pct" id="pct4">—</div>
+        </div>
+        <div id="sub4" class="gauge-sub"></div>
+        <div class="gauge-legend">
+          <span><i style="background:#ea4335;"></i>0–30% Insuficiente</span>
+          <span><i style="background:#fbbc04;"></i>30–34% Mínima</span>
+          <span><i style="background:#00b01d;"></i>35%+ Saludable</span>
+        </div>
+      </div>
+
+      <!-- G5 · Cobranza -->
+      <div class="gauge-card">
+        <div class="gauge-title">Índice de Cobranza</div>
+        <div class="gauge-wrap">
+          <canvas id="g5" width="200" height="118" style="width:100%;display:block;" aria-label="Índice de cobranza"></canvas>
+          <div class="gauge-pct" id="pct5">—</div>
+        </div>
+        <div id="sub5" class="gauge-sub"></div>
+        <div class="gauge-legend">
+          <span><i style="background:#ea4335;"></i>0–30% Insuficiente</span>
+          <span><i style="background:#fbbc04;"></i>30–34% Mínima</span>
+          <span><i style="background:#00b01d;"></i>35%+ Saludable</span>
+        </div>
+      </div>
+
+      <!-- G6 · Obj Ventas -->
+      <div class="gauge-card">
+        <div class="gauge-title">Objetivo de Ventas</div>
+        <div class="gauge-wrap">
+          <canvas id="g6" width="200" height="118" style="width:100%;display:block;" aria-label="Objetivo de ventas"></canvas>
+          <div class="gauge-pct" id="pct6">—</div>
+        </div>
+        <div id="sub6" class="gauge-sub"></div>
+        <div class="gauge-legend">
+          <span><i style="background:#fbbc04;"></i>Meta: $141,000,000</span>
+          <span><i style="background:#00b01d;"></i>Sobre objetivo</span>
+        </div>
+      </div>
+
+      <!-- G7 · Liquidez -->
+      <div class="gauge-card">
+        <div class="gauge-title">Índice de Liquidez</div>
+        <div class="gauge-wrap">
+          <canvas id="g7" width="200" height="118" style="width:100%;display:block;" aria-label="Índice de liquidez"></canvas>
+          <div class="gauge-pct" id="pct7">—</div>
+        </div>
+        <div class="gauge-legend">
+          <span><i style="background:#ea4335;"></i>0–1.8 Insuficiente</span>
+          <span><i style="background:#fbbc04;"></i>1.8–2.5 Mínima</span>
+          <span><i style="background:#00b01d;"></i>2.5+ Saludable</span>
+        </div>
+      </div>
+
+      <!-- G8 · Utilidad -->
+      <div class="gauge-card">
+        <div class="gauge-title">Utilidad Proyectada</div>
+        <div class="gauge-wrap">
+          <canvas id="g8" width="200" height="118" style="width:100%;display:block;" aria-label="Utilidad proyectada"></canvas>
+          <div class="gauge-pct" id="pct8">—</div>
+        </div>
+        <div id="sub8" class="gauge-sub"></div>
+        <div class="gauge-legend">
+          <span><i style="background:#ea4335;"></i>0–30% Insuficiente</span>
+          <span><i style="background:#fbbc04;"></i>30–34% Mínima</span>
+          <span><i style="background:#00b01d;"></i>35%+ Saludable</span>
+        </div>
+      </div>
+
+    </div><!-- /gauges-grid -->
+  </div><!-- /dashboard -->
+</div><!-- /dashboard wrapper -->
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   ⚙️  CONFIGURACIÓN — solo edita estas líneas
+   ══════════════════════════════════════════════════════════════ */
+const SHEET_ID   = '13tg709n_ELv1SzboMllMaPn_K8SwCxUAkuExqPWsnn8';   // ← ID de tu Google Sheet
+const TAB_NAME   = 'SIMA_Dashboard';      // ← Nombre exacto de la pestaña
+const REFRESH_MS = 5 * 60 * 1000;        // ← Auto-refresh cada 5 minutos
+/* ══════════════════════════════════════════════════════════════ */
+
+// ── Formateadores ─────────────────────────────────────────────
+const fmt$ = v => {
+  if (v == null || v === '') return '—';
+  const n = parseFloat(v);
+  return '$' + new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 }).format(Math.abs(n));
+};
+const fmtPct = v => (v == null ? '—' : parseFloat(v).toFixed(2) + '%');
+
+// ── Fetch desde Google Sheets (gviz/tq) ───────────────────────
+async function fetchSheetData() {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq`
+    + `?tqx=out:json&sheet=${encodeURIComponent(TAB_NAME)}&_=${Date.now()}`;
+
+  const res  = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status} — verifica que el Sheet sea público`);
+
+  const text  = await res.text();
+  const start = text.indexOf('{');
+  const end   = text.lastIndexOf('}') + 1;
+  if (start === -1) throw new Error('Respuesta inesperada del Sheet. ¿Publicaste el documento?');
+
+  const json = JSON.parse(text.slice(start, end));
+  if (!json.table || !json.table.rows) throw new Error('No se encontraron datos en la pestaña "' + TAB_NAME + '"');
+
+  // Construye diccionario  clave (col A)  →  valor (col B)
+  const dict = {};
+  for (const row of json.table.rows) {
+    const c = row.c;
+    if (c && c[0] && c[0].v != null && c[1] && c[1].v != null) {
+      dict[String(c[0].v).trim().toUpperCase()] = c[1].v;
+    }
+  }
+  return dict;
+}
+
+// ── Renderizar tabla comparativa ─────────────────────────────
+function renderTable(d) {
+  const semAnt  = d['SEMANA_ANT']  ?? '29';
+  const semCurr = d['SEMANA_CURR'] ?? '30';
+
+  // Columnas: {clave_base, tipo}  tipo: '$' | '%' | '%_neg' | '%_pos'
+  const cols = [
+    { k: 'PV',           tipo: '$'    },
+    { k: 'CDPPTO',       tipo: '$'    },
+    { k: 'PCT_CDPPTO',   tipo: '%'    },
+    { k: 'CDREAL',       tipo: '$'    },
+    { k: 'PCT_CDREAL',   tipo: '%'    },
+    { k: 'UTILPPTO',     tipo: '$'    },
+    { k: 'PCT_UTILPPTO', tipo: '%_neg'},
+    { k: 'UTILREAL',     tipo: '$'    },
+    { k: 'PCT_UTILREAL', tipo: '%_pos'},
+    { k: 'CDDISP',       tipo: '$'    },
+    { k: 'PCT_CDDISP',   tipo: '%_pos'},
+  ];
+
+  const cell = (tipo, raw) => {
+    if (raw == null) return '—';
+    const n = parseFloat(raw);
+    if (tipo === '$')     return fmt$(n);
+    if (tipo === '%')     return fmtPct(n);
+    if (tipo === '%_neg') return `<span style="color:${n < 0 ? '#ea4335' : '#f4f5f0'}">${fmtPct(n)}</span>`;
+    if (tipo === '%_pos') return `<span style="color:#1baf7a">${n >= 0 ? '▲' : '▼'}${fmtPct(Math.abs(n))} pp</span>`;
+    return raw;
+  };
+
+  const buildRow = (sfx, label, labelColor) => {
+    let h = `<td style="color:${labelColor};font-weight:500;">${label}</td>`;
+    for (const col of cols) h += `<td>${cell(col.tipo, d[col.k + '_' + sfx])}</td>`;
+    return h;
+  };
+
+  document.getElementById('row-ant').innerHTML  = buildRow('ANT',  `Semana ${semAnt}`,  '#bbb');
+  document.getElementById('row-curr').innerHTML = buildRow('CURR', `Semana ${semCurr}`, '#f4f5f0');
+
+  // Fila variación — color por signo
+  const varCols = [
+    { k: 'PV',           raw: true  },
+    { k: 'CDPPTO',       raw: true  },
+    { k: 'PCT_CDPPTO',   raw: false },
+    { k: 'CDREAL',       raw: true  },
+    { k: 'PCT_CDREAL',   raw: false },
+    { k: 'UTILPPTO',     raw: true  },
+    { k: 'PCT_UTILPPTO', raw: false },
+    { k: 'UTILREAL',     raw: true  },
+    { k: 'PCT_UTILREAL', raw: false },
+    { k: 'CDDISP',       raw: true  },
+    { k: 'PCT_CDDISP',   raw: false },
+  ];
+
+  let varHtml = `<td style="color:#f4f5f0;font-weight:600;">Variación</td>`;
+  for (const v of varCols) {
+    const raw = d[v.k + '_VAR'];
+    const n   = parseFloat(raw ?? 0);
+    const clr = n >= 0 ? '#47de00' : '#ff0b0b';
+    const txt = v.raw
+      ? (n >= 0 ? '+' : '−') + fmt$(Math.abs(n))
+      : (n >= 0 ? '+' : '')  + fmtPct(n);
+    varHtml += `<td style="color:${clr};font-weight:600;">${txt}</td>`;
+  }
+  document.getElementById('row-var').innerHTML = varHtml;
+}
+
+// ── Dibujar odómetro en canvas ────────────────────────────────
+function drawGauge(id, cfg) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const ctx  = canvas.getContext('2d');
+  const W    = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const cx   = W / 2;
+  const cy   = H * 0.80;
+  const rOut = Math.min(W * 0.43, H * 0.76);
+  const rIn  = rOut * 0.60;
+  const max  = cfg.max || 100;
+  const toA  = v => Math.PI + (Math.min(Math.max(v, 0), max) / max) * Math.PI;
+
+  // Fondo del arco
+  ctx.beginPath();
+  ctx.arc(cx, cy, rOut, Math.PI, 0, false);
+  ctx.arc(cx, cy, rIn,  0, Math.PI, true);
+  ctx.closePath();
+  ctx.fillStyle = '#1e1e1e';
+  ctx.fill();
+
+  // Zonas de color
+  for (const z of cfg.zones) {
+    const a1 = toA(z.from), a2 = toA(z.to);
+    ctx.beginPath();
+    ctx.arc(cx, cy, rOut, a1, a2, false);
+    ctx.arc(cx, cy, rIn,  a2, a1, true);
+    ctx.closePath();
+    ctx.fillStyle = z.color;
+    ctx.fill();
+  }
+
+  // Marcas de escala
+  for (let i = 0; i <= 10; i++) {
+    const a  = toA((i / 10) * max);
+    const r1 = rOut + 2;
+    const r2 = rOut + (i % 5 === 0 ? 8 : 5);
+    ctx.beginPath();
+    ctx.moveTo(cx + r1 * Math.cos(a), cy + r1 * Math.sin(a));
+    ctx.lineTo(cx + r2 * Math.cos(a), cy + r2 * Math.sin(a));
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth   = i % 5 === 0 ? 1.5 : 1;
+    ctx.stroke();
+  }
+
+  // Línea de meta (Objetivo Ventas)
+  if (cfg.targetValue != null) {
+    const ta = toA(cfg.targetValue);
+    ctx.beginPath();
+    ctx.moveTo(cx + (rIn - 2)  * Math.cos(ta), cy + (rIn - 2)  * Math.sin(ta));
+    ctx.lineTo(cx + (rOut + 8) * Math.cos(ta), cy + (rOut + 8) * Math.sin(ta));
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth   = 2;
+    ctx.stroke();
+  }
+
+  // Etiquetas 0 / max
+  const fs = Math.max(7, rOut * 0.19);
+  ctx.font      = `${fs}px sans-serif`;
+  ctx.fillStyle = '#888';
+  ctx.textAlign = 'right';
+  ctx.fillText('0', cx - rOut * 1.10, cy + fs * 1.1);
+  ctx.textAlign = 'left';
+  ctx.fillText(cfg.maxLabel ?? max, cx + rOut * 1.10, cy + fs * 1.1);
+
+  // Aguja
+  const angle = toA(cfg.value);
+  const nLen  = rOut * 0.84;
+  ctx.shadowColor = 'rgba(0,0,0,0.6)';
+  ctx.shadowBlur  = 4;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + nLen * Math.cos(angle), cy + nLen * Math.sin(angle));
+  ctx.strokeStyle = '#e74c3c';
+  ctx.lineWidth   = 2.2;
+  ctx.lineCap     = 'round';
+  ctx.stroke();
+  ctx.shadowBlur  = 0;
+
+  // Centro
+  ctx.beginPath(); ctx.arc(cx, cy, rOut * 0.14, 0, 2 * Math.PI);
+  ctx.fillStyle = '#2a78d6'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, rOut * 0.06, 0, 2 * Math.PI);
+  ctx.fillStyle = '#fff'; ctx.fill();
+}
+
+// ── Detectar color de zona ─────────────────────────────────────
+function zoneColor(value, zones) {
+  for (const z of zones) {
+    if (value >= z.from && value <= z.to) return z.color;
+  }
+  return zones[zones.length - 1].color;
+}
+
+// ── Paletas de zonas ───────────────────────────────────────────
+const Z_STD    = [{from:0,to:30,color:'#ea4335'},{from:30,to:34,color:'#fbbc04'},{from:34,to:100,color:'#00b01d'}];
+const Z_RISK   = [{from:0,to:20,color:'#00b01d'},{from:20,to:50,color:'#fbbc04'},{from:50,to:100,color:'#ea4335'}];
+const Z_PPTO   = [{from:0,to:30,color:'#ea4335'},{from:30,to:34,color:'#fbbc04'},{from:34,to:70, color:'#00b01d'}];
+const Z_VENTAS = [{from:0,to:80,color:'#ea4335'},{from:80,to:100,color:'#fbbc04'},{from:100,to:120,color:'#00b01d'}];
+const Z_LIQ    = [{from:0,to:1.8,color:'#ea4335'},{from:1.8,to:2.5,color:'#fbbc04'},{from:2.5,to:5,color:'#00b01d'}];
+
+// ── Renderizar los 8 odómetros ────────────────────────────────
+function renderGauges(d) {
+  const gauges = [
+    { id:'g1', pId:'pct1', zones:Z_RISK,   max:100, ml:'100', dk:'G_RIESGO',       disp:v=>`${v}%` },
+    { id:'g2', pId:'pct2', zones:Z_PPTO,   max:70,  ml:'70',  dk:'G_RENT_PPTO',    disp:v=>`${v}%`,  subId:'sub2', sk:'SUB_RENT_PPTO' },
+    { id:'g3', pId:'pct3', zones:Z_STD,    max:100, ml:'100', dk:'G_RENT_ROLLING', disp:v=>`${v}%`,  subId:'sub3', sk:'SUB_RENT_ROLLING' },
+    { id:'g4', pId:'pct4', zones:Z_STD,    max:100, ml:'100', dk:'G_CDD',          disp:v=>`${v}%`,  subId:'sub4', sk:'SUB_CDD' },
+    { id:'g5', pId:'pct5', zones:Z_STD,    max:100, ml:'100', dk:'G_COBRANZA',     disp:v=>`${v}%`,  subId:'sub5', sk:'SUB_COBRANZA' },
+    { id:'g6', pId:'pct6', zones:Z_VENTAS, max:120, ml:'120', dk:'G_VENTAS',       disp:v=>`${v}%`,  subId:'sub6', sk:'SUB_VENTAS', targetValue:100 },
+    { id:'g7', pId:'pct7', zones:Z_LIQ,    max:5,   ml:'5',   dk:'G_LIQUIDEZ',     disp:v=>`$${v}` },
+    { id:'g8', pId:'pct8', zones:Z_STD,    max:100, ml:'100', dk:'G_UTILIDAD',     disp:v=>`${v}%`,  subId:'sub8', sk:'SUB_UTILIDAD' },
+  ];
+
+  for (const g of gauges) {
+    const raw   = d[g.dk];
+    const value = raw != null ? parseFloat(raw) : 0;
+
+    drawGauge(g.id, { value, max: g.max, maxLabel: g.ml, zones: g.zones, targetValue: g.targetValue });
+
+    const pEl = document.getElementById(g.pId);
+    if (pEl) {
+      pEl.textContent = raw != null ? g.disp(value) : '—';
+      pEl.style.color = zoneColor(value, g.zones);
+    }
+
+    if (g.subId && g.sk && d[g.sk] != null) {
+      const sEl = document.getElementById(g.subId);
+      if (sEl) sEl.textContent = fmt$(d[g.sk]);
+    }
+  }
+}
+
+// ── Inicializar ───────────────────────────────────────────────
+async function init() {
+  document.getElementById('loading-state').style.display = 'flex';
+  document.getElementById('error-state').style.display   = 'none';
+  document.getElementById('dashboard').style.display     = 'none';
+
+  try {
+    const d = await fetchSheetData();
+
+    document.getElementById('semana-label').textContent =
+      `SEMANA ${d['SEMANA_ACTUAL'] ?? '—'}`;
+    document.getElementById('last-update').textContent  =
+      `Actualizado: ${new Date().toLocaleTimeString('es-MX')}`;
+
+    renderTable(d);
+    renderGauges(d);
+
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('dashboard').style.display     = 'block';
+  } catch (err) {
+    console.error(err);
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('error-state').style.display   = 'flex';
+    document.getElementById('error-msg').textContent =
+      err.message + '\n\nAsegúrate de que el Sheet esté publicado (Archivo → Compartir → Publicar en la web).';
+  }
+}
+
+init();
+setInterval(init, REFRESH_MS); // Auto-refresh
+</script>
+</body>
+</html>
