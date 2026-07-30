@@ -306,9 +306,10 @@
 /* ══════════════════════════════════════════════════════════════
    ⚙️  CONFIGURACIÓN — solo edita estas líneas
    ══════════════════════════════════════════════════════════════ */
-const SHEET_ID   = '13tg709n_ELv1SzboMllMaPn_K8SwCxUAkuExqPWsnn8';   // ← ID de tu Google Sheet
+const SHEET_ID   = '';   // ← ID de tu Google Sheet
 const TAB_NAME   = 'SIMA_Dashboard';      // ← Nombre exacto de la pestaña
 const REFRESH_MS = 5 * 60 * 1000;        // ← Auto-refresh cada 5 minutos
+const SCRIPT_URL = 'https://script.google.com/a/macros/simaenergia.com/s/AKfycbzlKTAnXb96WkSSq9k02c9pOw3z_NeSHLh99T77FPzc0B2JA9V5rjwvyAUOcvR0-6WY/exec'
 /* ══════════════════════════════════════════════════════════════ */
 
 // ── Formateadores ─────────────────────────────────────────────
@@ -321,8 +322,10 @@ const fmtPct = v => (v == null ? '—' : parseFloat(v).toFixed(2) + '%');
 
 // ── Fetch desde Google Sheets (gviz/tq) ───────────────────────
 async function fetchSheetData() {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq`
-    + `?tqx=out:json&sheet=${encodeURIComponent(TAB_NAME)}&_=${Date.now()}`;
+  const res  = await fetch(SCRIPT_URL);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return await res.json();
+}
 
   const res  = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} — verifica que el Sheet sea público`);
